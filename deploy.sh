@@ -157,6 +157,68 @@ else
     info "Services started!"
 fi
 
+# ── Setup remote nodes ──
+setup_remote_nodes() {
+    if [ ! -f "${INSTALL_DIR}/.env" ]; then
+        return
+    fi
+
+    SERVERS_JSON=$(grep '^SERVERS_CONFIG=' "${INSTALL_DIR}/.env" | sed "s/^SERVERS_CONFIG='//;s/'$//" | sed 's/^SERVERS_CONFIG="//' | sed 's/"$//')
+    if [ -z "$SERVERS_JSON" ] || echo "$SERVERS_JSON" | grep -q "YOUR"; then
+        return
+    fi
+
+    REMOTE_HOSTS=$(echo "$SERVERS_JSON" | python3 -c "
+import sys, json
+servers = json.load(sys.stdin)
+local_ips = set()
+try:
+    import subprocess
+    out = subprocess.check_output(['hostname', '-I'], text=True).strip()
+    local_ips = set(out.split())
+except: pass
+for s in servers:
+    h = s.get('host','')
+    if h and h not in local_ips and h != '127.0.0.1':
+        u = s.get('ssh_user','root')
+        k = s.get('ssh_key_path','/root/.ssh/id_rsa')
+        print(f\"{u}@{h}|{k}|{s.get('name','')}\")
+" 2>/dev/null || true)
+
+    if [ -z "$REMOTE_HOSTS" ]; then
+        return
+    fi
+
+    info "Setting up remote nodes..."
+    DEPLOY_NODE_URL="https://raw.githubusercontent.com/web0worm/ru-srt-bot/main/deploy-node.sh"
+
+    while IFS= read -r line; do
+        SSH_TARGET=$(echo "$line" | cut -d'|' -f1)
+        SSH_KEY=$(echo "$line" | cut -d'|' -f2)
+        SRV_NAME=$(echo "$line" | cut -d'|' -f3)
+
+        if [ ! -f "$SSH_KEY" ]; then
+            warn "SSH key $SSH_KEY not found, skipping ${SRV_NAME} (${SSH_TARGET})"
+            continue
+        fi
+
+        info "Deploying node: ${SRV_NAME} (${SSH_TARGET})..."
+        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i "$SSH_KEY" "$SSH_TARGET" \
+            "bash <(curl -sL ${DEPLOY_NODE_URL})" 2>&1 | while read -r l; do echo "  [${SRV_NAME}] $l"; done
+
+        if [ $? -eq 0 ]; then
+            info "${SRV_NAME} node ready"
+        else
+            warn "Failed to setup ${SRV_NAME} node"
+        fi
+    done <<< "$REMOTE_HOSTS"
+}
+
+# Try to setup remote nodes if .env is configured
+if ! grep -q "YOUR_BOT_TOKEN_HERE" "${INSTALL_DIR}/.env" 2>/dev/null; then
+    setup_remote_nodes
+fi
+
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════════${NC}"
 echo -e "${GREEN}  RU SRT BOT deployed successfully!${NC}"
@@ -171,4 +233,7 @@ echo "  Quick commands:"
 echo "    systemctl restart ${SERVICE_NAME}   # Restart bot"
 echo "    systemctl stop ${SERVICE_NAME}      # Stop bot"
 echo "    nano ${INSTALL_DIR}/.env            # Edit config"
+echo ""
+echo "  Remote nodes (run on each remote server):"
+echo "    bash <(curl -sL https://raw.githubusercontent.com/web0worm/ru-srt-bot/main/deploy-node.sh)"
 echo ""

@@ -16,6 +16,8 @@ Telegram-бот для управления SRT-потоками (входящи
 
 ## Быстрая установка (одна команда)
 
+### Основной сервер (бот + ffmpeg)
+
 ```bash
 bash <(curl -sL https://raw.githubusercontent.com/web0worm/ru-srt-bot/main/deploy.sh)
 ```
@@ -25,6 +27,32 @@ bash <(curl -sL https://raw.githubusercontent.com/web0worm/ru-srt-bot/main/deplo
 ```bash
 nano /opt/srt-bot/.env
 systemctl restart srt-bot
+```
+
+### Удалённые ноды (только ffmpeg)
+
+На каждом удалённом сервере (например, Москва):
+
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/web0worm/ru-srt-bot/main/deploy-node.sh)
+```
+
+Если `.env` на основном сервере уже настроен и SSH-ключи на месте, `deploy.sh` автоматически развернёт все удалённые ноды.
+
+### Полное восстановление двух серверов с нуля
+
+```bash
+# 1. На основном сервере (СПБ):
+bash <(curl -sL https://raw.githubusercontent.com/web0worm/ru-srt-bot/main/deploy.sh)
+nano /opt/srt-bot/.env   # вписать токен, серверы, admin_id
+systemctl restart srt-bot
+
+# 2. На удалённом сервере (МСК):
+bash <(curl -sL https://raw.githubusercontent.com/web0worm/ru-srt-bot/main/deploy-node.sh)
+
+# 3. На основном — настроить SSH-доступ к удалённому:
+ssh-keygen -t rsa -b 4096 -N ""
+ssh-copy-id root@MOSCOW_SERVER_IP
 ```
 
 ## Установка из клона
@@ -88,7 +116,8 @@ ssh-copy-id root@REMOTE_SERVER_IP
 │   ├── check_tunnel_reminders.py
 │   └── send_tunnel_reminders.py
 ├── status_server.py           # HTTP-сервер статуса
-├── deploy.sh                  # Скрипт развёртывания
+├── deploy.sh                  # Скрипт развёртывания (основной сервер)
+├── deploy-node.sh             # Скрипт для удалённых нод (ffmpeg only)
 ├── requirements.txt
 ├── .env.example
 └── README.md
