@@ -1,0 +1,23 @@
+# Environment
+.env
+venv/
+__pycache__/
+*.pyc
+
+# Data (runtime)
+data/state.json
+data/users.json
+data/reviews.json
+data/reminder_*.json
+logs/
+avatars/
+
+# Backups
+backups/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
